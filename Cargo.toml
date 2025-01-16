@@ -1,0 +1,11 @@
+[package]
+name = "hello-rocket"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = { version = "0.5.1", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+delete = "1.0.1"
+
