@@ -14,7 +14,7 @@ use uuid::Uuid;
 #[macro_use]
 extern crate rocket;
 
-const UPLOAD_DIR: &str = "./uploads/";
+const UPLOAD_DIR: &str = "./uploads";
 
 #[derive(FromForm)]
 struct Upload<'f> {
@@ -61,7 +61,7 @@ async fn upload(mut form: Form<Upload<'_>>) -> Result<Json<ZipfResponse>, (Statu
     println!("Guardando archivo en: {}", file_path);
 
     // Persistir el archivo al directorio destino
-    form.file.persist_to(&file_path).await.map_err(|e| {
+    form.file.copy_to(&file_path).await.map_err(|e| {
         (
             Status::InternalServerError,
             format!("Error al guardar archivo: {}", e),
