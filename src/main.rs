@@ -14,7 +14,7 @@ use uuid::Uuid;
 #[macro_use]
 extern crate rocket;
 
-const UPLOAD_DIR: &str = "./uploads";
+const UPLOAD_DIR: &str = "/tmp";
 
 #[derive(FromForm)]
 struct Upload<'f> {
