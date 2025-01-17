@@ -51,8 +51,8 @@ struct Upload<'f> {
 #[serde(crate = "rocket::serde")]
 struct ZipfResponse {
     vector_keys: Vec<String>,
-    vector_values: Vec<u32>,
-    vector_ranking: Vec<u32>,
+    vector_values: Vec<f64>,
+    vector_ranking: Vec<f64>,
 }
 
 #[post("/upload", format = "multipart/form-data", data = "<form>")]
@@ -126,10 +126,14 @@ async fn upload(mut form: Form<Upload<'_>>) -> Result<Json<ZipfResponse>, (Statu
     let capacity = values.len() as u32;
     let ranking: Vec<u32> = (1..=capacity).collect();
 
+    // Aplicamos log base 10 para graficar asimilando una recta con pendiente negativa
+    let log_values: Vec<f64> = values.iter().map(|&val| (val as f64).log10()).collect();
+    let log_ranking: Vec<f64> = ranking.iter().map(|&val| (val as f64).log10()).collect();
+
     Ok(Json(ZipfResponse {
         vector_keys: keys,
-        vector_values: values,
-        vector_ranking: ranking,
+        vector_values: log_values,
+        vector_ranking: log_ranking,
     }))
 }
 
@@ -163,7 +167,7 @@ fn read_document(path: &str) -> Result<String, Error> {
     let mut f = File::open(path)?;
     let mut content = String::new();
     f.read_to_string(&mut content)?;
-    Ok(content)
+    Ok(content.to_lowercase())
 }
 
 // Una función que permita obtener la tabla (o vectores) 'ranking' y 'frecuencia' según el documento leido
