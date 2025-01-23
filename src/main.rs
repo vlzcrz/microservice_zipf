@@ -57,6 +57,10 @@ struct ZipfResponse {
 
 #[post("/upload", format = "multipart/form-data", data = "<form>")]
 async fn upload(mut form: Form<Upload<'_>>) -> Result<Json<ZipfResponse>, (Status, String)> {
+    // Configuración ASCII para que solo se adecue a las palabras usadas en idioma ingles
+    let mut ascii_interest: Vec<u8> = (97..121).collect();
+    ascii_interest.push(39);
+
     // Verificar que el archivo exista
     let filename = form.file.name().unwrap_or("null");
 
@@ -64,29 +68,15 @@ async fn upload(mut form: Form<Upload<'_>>) -> Result<Json<ZipfResponse>, (Statu
         return Err((Status::BadRequest, "El archivo no existe".to_string()));
     }
 
-    if !is_text_file(&form.file) {
-        return Err((
-            Status::BadRequest,
-            "El archivo no es un archivo de texto válido.".to_string(),
-        ));
-    }
-    // Asegurarse de que el directorio de uploads exista
-    if !std::path::Path::new(UPLOAD_DIR).exists() {
-        std::fs::create_dir_all(UPLOAD_DIR).map_err(|e| {
-            (
-                Status::InternalServerError,
-                format!("Error al crear el directorio de uploads: {}", e),
-            )
-        })?;
-    }
+    let extension = get_extension(&form.file).unwrap();
 
     // Crear un identificador único para el archivo
     let file_id: String = Uuid::new_v4().to_string();
-    let file_path = format!("{}/{}.txt", UPLOAD_DIR, file_id);
+    let file_path = format!("{}/{}.{}", UPLOAD_DIR, file_id, extension);
 
     println!("Guardando archivo en: {}", file_path);
 
-    // Persistir el archivo al directorio destino
+    // Copiar el archivo al directorio destino
     form.file.copy_to(&file_path).await.map_err(|e| {
         (
             Status::InternalServerError,
@@ -97,17 +87,30 @@ async fn upload(mut form: Form<Upload<'_>>) -> Result<Json<ZipfResponse>, (Statu
     println!("Archivo guardado con éxito en: {}", file_path);
 
     // Agregar el script de la ley de zipf
-    let content = read_document(&file_path).map_err(|e| {
-        (
-            Status::InternalServerError,
-            format!("Error al leer el archivo: {}", e),
-        )
-    })?;
+
+    let content;
+    if extension == "pdf" {
+        content = read_document_pdf(&file_path).map_err(|e| {
+            (
+                Status::InternalServerError,
+                format!("Error al leer el archivo pdf: {}", e),
+            )
+        })?;
+    } else {
+        content = read_document_txt(&file_path).map_err(|e| {
+            (
+                Status::InternalServerError,
+                format!("Error al leer el archivo txt: {}", e),
+            )
+        })?;
+    }
 
     let mut words: HashMap<&str, u32> = HashMap::new();
     for word in content.split_whitespace() {
-        let count = words.entry(word).or_insert(0);
-        *count += 1;
+        if is_ascii_valid(word, &ascii_interest).unwrap() {
+            let count = words.entry(word).or_insert(0);
+            *count += 1;
+        }
     }
 
     let mut keys: Vec<String> = Vec::new();
@@ -148,26 +151,40 @@ fn rocket() -> _ {
 //    Path::new(filename).extension().and_then(OsStr::to_str)
 //}
 
-// Función para verificar si el archivo es de tipo texto
-fn is_text_file(file: &TempFile<'_>) -> bool {
-    // Verificar el tipo MIME (propiedades del archivo)
-    if let Some(content_type) = file.content_type() {
-        if content_type.is_text() {
-            return true;
-        } else {
-            return false;
+// Funcion para verificar que es una letra que pertenece a nuestro rango ASCII de interes (32-126)
+fn is_ascii_valid(word: &str, ascii_interest: &Vec<u8>) -> Result<bool, Error> {
+    let bytes_word = word.as_bytes();
+    for byte in bytes_word {
+        if !ascii_interest.contains(byte) {
+            return Ok(false);
         }
-    } else {
-        return false;
     }
+    Ok(true)
+}
+
+fn get_extension(file: &TempFile<'_>) -> Result<String, Error> {
+    let content_type = file.content_type();
+    let extension = content_type.unwrap().extension().unwrap().to_string();
+    Ok(extension)
+}
+
+// una función que permita leer el documento pdf
+fn read_document_pdf(path: &str) -> Result<String, Error> {
+    let bytes = std::fs::read(path).unwrap();
+    let content = pdf_extract::extract_text_from_mem(&bytes).unwrap();
+    Ok(content
+        .to_lowercase()
+        .replace(&[',', '.', '(', ')', '[', ']'][..], ""))
 }
 
 // una función que permita leer el documento
-fn read_document(path: &str) -> Result<String, Error> {
+fn read_document_txt(path: &str) -> Result<String, Error> {
     let mut f = File::open(path)?;
     let mut content = String::new();
     f.read_to_string(&mut content)?;
-    Ok(content.to_lowercase())
+    Ok(content
+        .to_lowercase()
+        .replace(&[',', '.', '(', ')', '[', ']'][..], ""))
 }
 
 // Una función que permita obtener la tabla (o vectores) 'ranking' y 'frecuencia' según el documento leido
