@@ -1,4 +1,4 @@
 [default]
 address = "0.0.0.0"
 port = 10000
-limits = { form = "64 kB", data-form = "20MiB", json = "20 MiB", "file/txt" = "20 MiB" }
+limits = { form = "64 kB", data-form = "200 MiB", json = "200 MiB", "file/txt" = "200 MiB", "file/pdf" = "200 MiB" }
