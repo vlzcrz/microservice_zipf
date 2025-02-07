@@ -4,7 +4,7 @@ use delete::delete_file_async;
 use rocket::Error;
 use serde::Serialize;
 
-use crate::utils::sort_utils::merge_sort;
+use crate::utils::{linear_regression_utils::linear_regression_x1, sort_utils::merge_sort};
 
 use super::file_utils::is_ascii_valid;
 
@@ -28,6 +28,7 @@ pub struct ZipfResponse {
     values_trend_n50: Vec<u32>,
     total_words: u32,
     total_different_words: u32,
+    linear_regression_parameters: Vec<f64>,
 }
 
 pub async fn zipf_law_process(content: String, file_path: &str) -> Result<ZipfResponse, Error> {
@@ -83,12 +84,15 @@ pub async fn zipf_law_process(content: String, file_path: &str) -> Result<ZipfRe
     let log_values: Vec<f64> = values.iter().map(|&val| (val as f64).log10()).collect();
     let log_ranking: Vec<f64> = ranking.iter().map(|&val| (val as f64).log10()).collect();
 
+    let linregress_parameters = linear_regression_x1(&log_values, &log_ranking).unwrap();
+
     println!("{:?}", keys);
     println!("{:?}", log_ranking);
     println!("{:?}", log_values);
     println!("{:?}", words_first_n50);
     println!("{:?}", total);
     println!("{:?}", capacity);
+    println!("{:?}", linregress_parameters);
 
     Ok(ZipfResponse {
         vector_keys: keys,
@@ -98,5 +102,6 @@ pub async fn zipf_law_process(content: String, file_path: &str) -> Result<ZipfRe
         values_trend_n50: values_first_n50,
         total_words: total,
         total_different_words: capacity,
+        linear_regression_parameters: linregress_parameters,
     })
 }
